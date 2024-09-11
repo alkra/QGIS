@@ -1,0 +1,91 @@
+I compiled QGIS against GEOS 3.12.1. Same erroneous behaviour.
+
+QGIS version: 3.35.0-Master
+QGIS code revision: 8677bc2f18
+Qt version: 5.15.10
+Python version: 3.11.7
+GDAL/OGR version: 3.8.2
+PROJ version: 9.3.1
+EPSG Registry database version: v10.098 (2023-11-24)
+GEOS version: 3.12.1-CAPI-1.18.1
+SQLite version: 3.44.2
+PostgreSQL client version: 16.1 (Debian 16.1-1)
+SpatiaLite version: 5.1.0
+QWT version: 6.1.4
+QScintilla2 version: 2.14.1
+OS version: Debian GNU/Linux trixie/sid
+
+![Screen shot](https://github.com/qgis/QGIS/assets/11193174/1da6983d-929c-4b97-bf61-bea462748405)
+
+I tested `geosopt` on 3.12.1:
+
+<table>
+<tr>
+<th>command</th>
+<th>result-3.10</th>
+<th>3.10 reversed?</th>
+<th>result-3.11</th>
+<th>3.11 reversed?</th>
+<th>result-3.12</th>
+<th>3.12 reversed?</th>
+<th>QGIS offset sign</th>
+<th>QGIS regress?</th>
+</tr>
+<tr>
+<td>geosop -a <i>[ccw]</i> -f wkt offsetCurve 2</td>
+<td>LINESTRING (2 2, 8 2, 8 8, 2 8, 2 2)</td>
+<td>N</td>
+<td>LINESTRING (2 2, 8 2, 8 8, 2 8, 2 2)</td>
+<td>N</td>
+<td>LINESTRING (2 2, 8 2, 8 8, 2 8, 2 2)</td>
+<td>N</td>
+<td>-</td>
+<td>N</td>
+</tr>
+<tr>
+<td>geosop -a <i>[ccw]</i> -f wkt offsetCurve N-2</td>
+<td>LINESTRING (-2 0,-2 10, [...], 0 12, 10 12, [...], 10 -2, 0 -2)</td>
+<td>Y</td>
+<td>LINESTRING (0 -2, 10 -2, [...], 12 0, 12 10, [...], -2 10, -2 0)</td>
+<td>N</td>
+<td>LINESTRING (0 -2, 10 -2, [...], 12 0, 12 10, [...], -2 10, -2 0)</td>
+<td>N</td>
+<td>+</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>geosop -a <i>[cw]</i> -f wkt offsetCurve 2</td>
+<td>LINESTRING (-2 0, -2 10, [...], 0 12, 10 12, [...], 10 -2, 0 -2)</td>
+<td>N</td>
+<td>LINESTRING (-2 0, -2 10, [...], 0 12, 10 12, [...], 10 -2, 0 -2)</td>
+<td>N</td>
+<td>LINESTRING (-2 0, -2 10, [...], 0 12, 10 12, [...], 10 -2, 0 -2)</td>
+<td>N</td>
+<td>-</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>geosop -a <i>[cw]</i> -f wkt offsetCurve N-2</td>
+<td>LINESTRING (2 2, 8 2, 8 8, 2 8, 2 2)</td>
+<td>Y</td>
+<td>LINESTRING (2 2, 2 8, 8 8, 8 2, 2 2)</td>
+<td>N</td>
+<td>LINESTRING (2 2, 2 8, 8 8, 8 2, 2 2)</td>
+<td>N</td>
+<td>+</td>
+<td>N</td>
+</tr>
+</table>
+
+The visible behaviour of GEOS has not changed in 3.12. GEOS is still working as expected.
+
+> From #51750:
+> 
+> > Sometimes, if the line is not fully visible on the canvas, there is no issue:
+
+I can confirm that, when the duplicated node lies outside of the canvas, the offset works as expected. (does QGIS sends only part of the linestring to GEOS? Or is the resulting closed offset curve truncated before QGIS deletes the duplicated node?)
+
+> Given that one issue is already fixed upstrean and second has a separate ticket should we close this?
+
+[#55050](https://github.com/qgis/QGIS/issues/55050) is being closed as a duplicate of this bug.
+
