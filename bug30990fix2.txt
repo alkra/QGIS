@@ -1,0 +1,81 @@
+From 8b8be42f43818c54585b4cc3f602c67ec2a83e75 Mon Sep 17 00:00:00 2001
+From: Alban Kraus <alban.kraus@tulleagglo.fr>
+Date: Tue, 30 Jul 2019 14:37:18 +0200
+Subject: [PATCH] Foreign tables: handle them like views
+
+---
+ src/providers/postgres/qgspostgresconn.cpp     | 9 ++++++---
+ src/providers/postgres/qgspostgresprovider.cpp | 2 +-
+ 2 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/providers/postgres/qgspostgresconn.cpp b/src/providers/postgres/qgspostgresconn.cpp
+index 5f3f364bf..a695bd190 100644
+--- a/src/providers/postgres/qgspostgresconn.cpp
++++ b/src/providers/postgres/qgspostgresconn.cpp
+@@ -543,6 +543,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+       QString relkind = result.PQgetvalue( idx, 6 );
+       bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
+       bool isMaterializedView = relkind == QLatin1String( "m" );
++      bool isForeignTable = relkind == QLatin1String( "f" );
+       QString comment = result.PQgetvalue( idx, 7 );
+ 
+       int srid = ssrid.isEmpty() ? std::numeric_limits<int>::min() : ssrid.toInt();
+@@ -577,7 +578,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+       layerProperty.isView = isView;
+       layerProperty.isMaterializedView = isMaterializedView;
+       layerProperty.tableComment = comment;
+-      addColumnInfo( layerProperty, schemaName, tableName, isView );
++      addColumnInfo( layerProperty, schemaName, tableName, isView || isForeignTable );
+ 
+       if ( isView && layerProperty.pkCols.empty() )
+       {
+@@ -665,6 +666,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+       QString coltype    = result.PQgetvalue( i, 4 ); // column type
+       bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
+       bool isMaterializedView = relkind == QLatin1String( "m" );
++      bool isForeignTable = relkind == QLatin1String( "f" );
+       QString comment    = result.PQgetvalue( i, 5 ); // table comment
+ 
+       //QgsDebugMsg( QStringLiteral( "%1.%2.%3: %4" ).arg( schemaName ).arg( tableName ).arg( column ).arg( relkind ) );
+@@ -699,7 +701,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+         Q_ASSERT( !"Unknown geometry type" );
+       }
+ 
+-      addColumnInfo( layerProperty, schemaName, tableName, isView );
++      addColumnInfo( layerProperty, schemaName, tableName, isView || isForeignTable );
+       if ( isView && layerProperty.pkCols.empty() )
+       {
+         //QgsDebugMsg( QStringLiteral( "no key columns found." ) );
+@@ -754,6 +756,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+       QString relkind = result.PQgetvalue( i, 2 ); // relation kind
+       bool isView = relkind == QLatin1String( "v" ) || relkind == QLatin1String( "m" );
+       bool isMaterializedView = relkind == QLatin1String( "m" );
++      bool isForeignTable = relkind == QLatin1String( "f" );
+       QString comment = result.PQgetvalue( i, 3 ); // table comment
+ 
+       //QgsDebugMsg( QStringLiteral( "%1.%2: %3" ).arg( schema ).arg( table ).arg( relkind ) );
+@@ -784,7 +787,7 @@ bool QgsPostgresConn::getTableInfo( bool searchGeometryColumnsOnly, bool searchP
+       if ( alreadyFound )
+         continue;
+ 
+-      addColumnInfo( layerProperty, schema, table, isView );
++      addColumnInfo( layerProperty, schema, table, isView || isForeignTable );
+       layerProperty.sql.clear();
+ 
+       mLayersSupported << layerProperty;
+diff --git a/src/providers/postgres/qgspostgresprovider.cpp b/src/providers/postgres/qgspostgresprovider.cpp
+index 1103b3eed..d9b696951 100644
+--- a/src/providers/postgres/qgspostgresprovider.cpp
++++ b/src/providers/postgres/qgspostgresprovider.cpp
+@@ -1420,7 +1420,7 @@ bool QgsPostgresProvider::determinePrimaryKey()
+           QgsMessageLog::logMessage( tr( "The table has no column suitable for use as a key. QGIS requires a primary key, a PostgreSQL oid column or a ctid for tables." ), tr( "PostGIS" ) );
+         }
+       }
+-      else if ( type == Relkind::View || type == Relkind::MaterializedView )
++      else if ( type == Relkind::View || type == Relkind::MaterializedView || type == Relkind::ForeignTable )
+       {
+         determinePrimaryKeyFromUriKeyColumn();
+       }
+-- 
+2.22.0.windows.1
+
