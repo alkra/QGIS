@@ -1,0 +1,48 @@
+Bug : line_substring returns empty geometry when distances are exact (e.g., computed with distance_to_vertex)
+
+I wanted to draw only parts of a linear feature, with a geometry generator.  I identified the parts I was interested in using a range of vertex numbers. I could not find a "substring" function taking a vertex range as argument, so I used line_substring together with distance_to_vertex.
+
+line_substring($geometry, distance_to_vertex($geometry, "VERT1"), distance_to_vertex($geometry, "VERT2"))
+
+But then, the features were not drawn. I tried using that formula with geom_to_wkt in a virtual field:
+
+LINESTRING EMPTY
+
+The attached self-contained project demonstrates the issue.
+
+QGIS and OS version : TODO (branch off, recompile, copy-paste, branch in)
+
+-----
+
+I investigated the issue further. In src/core/geometry/qgslinestring.cpp:1083, the case when startDistance == distanceTraversed is not handled (unless startDistance is 0.0). I'm preparing a pull request.
+
+-----
+
+Handle exact distances in curveSubstring
+
+These exact distances can be obtained with distance_to_vertex.  Before
+this change, the code considered the line segments as open intervals,
+so that vertices could not ever be considered as the start of a
+substring.  This change considers them as semi-open intervals (closed
+at the beginning) instead. (With a special case when starting the
+substring at the last vertex)
+
+The last segment is considered closed at both ends.
+
+Double equality is performed as exact equality, because it does not
+matter on which segment the start of the substring is. Except where
+startDistance is -0.0, which is already handled before the for loop,
+or when startDistance is at the last vertex.
+
+
+Failed test result :
+
+66: FAIL!  : TestQgsGeometry::lineString() Compared values are not the same
+66:    Actual   (substringResult->asWkt( 2 ))                                 : "LineString EMPTY"
+66:    Expected (QStringLiteral( "LineStringZM (11 12 13 14, 111 12 23 24)" )): "LineStringZM (11 12 13 14, 111 12 23 24)"
+66:    Loc: [/home/alban/QGIS/tests/src/core/testqgsgeometry.cpp(4961)]
+66: FAIL!  : TestQgsGeometry::circularString() Compared values are not the same
+66:    Actual   (substringResult->asWkt( 2 ))                                                           : "CircularString EMPTY"
+66:    Expected (QStringLiteral( "CircularStringZM (12 0 13 14, 14.36 -0.94 14.19 15.19, 16 1 23 24)" )): "CircularStringZM (12 0 13 14, 14.36 -0.94 14.19 15.19, 16 1 23 24)"
+66:    Loc: [/home/alban/QGIS/tests/src/core/testqgsgeometry.cpp(2877)]
+
